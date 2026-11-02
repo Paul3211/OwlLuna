@@ -158,6 +158,9 @@ final class SyncCenter {
             return await use(CloudFolder(url: url), account: LaunchOptions.value("-cloudAccount"))
         }
         #endif
+        #if OWLLUNA_LOCAL_ONLY
+        leave(String(localized: "This copy of OwlLuna was built without the iCloud capability, so it can't sync."))
+        #else
         let signedOut = String(localized: "iCloud isn't available. Sign in to iCloud and turn on iCloud Drive in Settings; this copy of OwlLuna also has to be built with the iCloud capability.")
         // A test's storage root never syncs with real iCloud.
         guard !LaunchOptions.usesTestStorage else { return leave(signedOut) }
@@ -172,6 +175,7 @@ final class SyncCenter {
             return leave(String(localized: "This copy of OwlLuna was built without the iCloud capability, so it can't sync."))
         }
         await use(CloudFolder(url: container.appending(path: "Sync", directoryHint: .isDirectory), isUbiquitous: true), account: Self.marker(for: token))
+        #endif
     }
 
     /// The synced copy has been found. What has to be asked first is worked out before sync is said to be

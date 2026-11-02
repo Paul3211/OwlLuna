@@ -1,0 +1,44 @@
+name: Build OwlLuna IPA (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [sidestore]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unsigned-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    # Standard public-repository runner, no larger/paid runner.
+    if: github.event.repository.private == false
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Archive, package and verify device IPA
+        run: bash Scripts/SideStore/build.sh
+      - name: Upload verified IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: OwlLuna-unsigned-${{ github.run_number }}
+          path: |
+            build/SideStore/*.ipa
+            build/SideStore/*.sha256
+            build/SideStore/*.verification.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: OwlLuna-build-diagnostics-${{ github.run_number }}
+          path: |
+            build/SideStore/*.log
+            build/SideStore/*version.txt
+          if-no-files-found: warn
+          retention-days: 7
