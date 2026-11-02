@@ -9,3 +9,8 @@ build/
 .swiftpm/
 .build/
 Config/Signing.local.xcconfig
+Windows/bin/
+Windows/obj/
+__pycache__/
+*.protected
+*oauth*.local.json

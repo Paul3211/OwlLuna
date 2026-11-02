@@ -1,0 +1,52 @@
+name: Build Windows desktop app
+on:
+  workflow_dispatch:
+  push:
+    branches: [windows]
+    paths: ['Windows/**', '.github/workflows/windows-build.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.event.repository.private == false
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and verify Windows core
+        shell: pwsh
+        run: |
+          dotnet build Windows/OwlLuna.Windows.csproj -c Release -warnaserror
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $exe = Resolve-Path 'Windows/bin/Release/net10.0-windows10.0.19041.0/OwlLuna.Windows.exe'
+          $testRoot = Join-Path $env:RUNNER_TEMP 'OwlLuna-tests'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--self-test', $testRoot) -PassThru -Wait -WindowStyle Hidden
+          if ($process.ExitCode) { throw 'Windows self-tests failed' }
+          Get-Content "$testRoot/results.txt"
+      - name: Publish standalone x64 application
+        shell: pwsh
+        run: |
+          dotnet publish Windows/OwlLuna.Windows.csproj -c Release -r win-x64 --self-contained true -o dist/OwlLuna-Windows -p:DebugType=None -p:DebugSymbols=false
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item LICENSE dist/OwlLuna-Windows/LICENSE.txt
+          Copy-Item Windows/README.md dist/OwlLuna-Windows/START-HERE.md
+          Copy-Item Windows/THIRD-PARTY-NOTICES.md dist/OwlLuna-Windows/
+          Compress-Archive dist/OwlLuna-Windows/* dist/OwlLuna-Windows-x64.zip
+          (Get-FileHash dist/OwlLuna-Windows-x64.zip -Algorithm SHA256).Hash | Set-Content dist/OwlLuna-Windows-x64.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OwlLuna-Windows-x64
+          path: dist/*.zip
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Windows-test-results
+          path: ${{ runner.temp }}/OwlLuna-tests/results.*
+          retention-days: 7

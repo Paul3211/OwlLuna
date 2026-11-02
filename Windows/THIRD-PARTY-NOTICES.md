@@ -1,0 +1,15 @@
+# Open-source components
+
+OwlLuna and this Windows port: MIT, copyright Owais Khan and contributors. See LICENSE.txt.
+
+PDFsharp WPF 6.2.4: MIT, copyright empira Software GmbH. https://github.com/empira/PDFsharp
+
+.NET and WPF: MIT, copyright .NET Foundation and contributors. The standalone distribution includes Microsoft's runtime license and third-party notices.
+
+Windows SDK projection / C#/WinRT: Microsoft-provided runtime projection, MIT. https://github.com/microsoft/CsWinRT
+
+The app uses the Windows-installed Segoe UI font and the operating system's pen, PDF and handwriting services. It does not redistribute Segoe UI or install third-party font packs.
+
+Google Drive is accessed through Google's OAuth and Drive APIs. No Google passwords, API keys or client credentials are committed to the public source repository. Personal account tokens are protected with Windows DPAPI for the current user.
+
+System.Speech 10.0.0: MIT, copyright .NET Foundation and contributors. Uses installed Windows speech recognizers for local transcription.
