@@ -231,9 +231,10 @@ public partial class MainWindow : Window
     void CloudSettings(object s,RoutedEventArgs e)
     {
         var dialog=new Window { Owner=this,Title="Cloud & Backup",Width=640,Height=640,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Brush("#F9F8F3") };
+        dialog.Closed += (_,_) => drive.CancelLogin();
         var panel=new StackPanel{Margin=new Thickness(24)}; var status=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(5,12,5,12)};
         panel.Children.Add(new TextBlock{Text="Deine Notizen bleiben zuerst auf diesem PC.",FontSize=20,TextWrapping=TextWrapping.Wrap});
-        void Button(string label,Func<Task> action) { var b=new Button{Content=label,HorizontalContentAlignment=HorizontalAlignment.Left}; b.Click+=async (_,_)=>{b.IsEnabled=false; try{await action();}catch(Exception ex){status.Text=ex.Message;}finally{b.IsEnabled=true;}};panel.Children.Add(b); }
+        void Button(string label,Func<Task> action) { var b=new Button{Content=label,HorizontalContentAlignment=HorizontalAlignment.Left}; b.Click+=async (_,_)=>{if(cloudBusy){status.Text="Eine Cloud-Aktion läuft bereits. Zum Abbrechen der Anmeldung dieses Fenster schließen.";return;}cloudBusy=true;b.IsEnabled=false; try{await action();}catch(Exception ex){status.Text=ex is OperationCanceledException?"Google-Anmeldung nicht abgeschlossen. Du kannst sie erneut starten.":ex.Message;}finally{b.IsEnabled=true;cloudBusy=false;}};panel.Children.Add(b); }
         Button("Google: OAuth-Desktop-Konfiguration importieren",()=>{var p=new OpenFileDialog{Filter="Google OAuth-Konfiguration|*.json"};if(p.ShowDialog()==true){drive.Configure(p.FileName);library.Settings.DriveFolderId=null;library.SaveSettings();status.Text="Google-Client konfiguriert. Jetzt anmelden.";}return Task.CompletedTask;});
         Button(drive.Connected?"Google: erneut anmelden":"Mit Google anmelden",async()=>{await drive.SignIn();library.Settings.DriveFolderId=null;library.SaveSettings();status.Text="Mit Google Drive verbunden. Zugriff nur auf von OwlLuna erstellte Dateien.";});
         Button("Jetzt geprüftes Backup zu Google Drive hochladen",async()=>{await Backup(true);status.Text=StateText.Text;});

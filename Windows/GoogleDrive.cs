@@ -16,6 +16,7 @@ public sealed class GoogleDrive
     readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(10) };
     JsonObject? token;
     DateTimeOffset expires;
+    CancellationTokenSource? loginCancellation;
     public bool Connected => File.Exists(tokenPath);
     public bool Configured => File.Exists(clientPath);
     public GoogleDrive(string root) {
@@ -53,6 +54,7 @@ public sealed class GoogleDrive
             });
             Process.Start(new ProcessStartInfo(auth) { UseShellExecute = true });
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            loginCancellation = cancellation;
             string? code = null;
             while (code is null)
             {
@@ -77,23 +79,25 @@ public sealed class GoogleDrive
                 if (values.ContainsKey("error")) throw new InvalidOperationException("Die Google-Anmeldung wurde abgebrochen.");
                 code = values.GetValueOrDefault("code");
             }
-            token = await Token(new() { ["client_id"] = client["client_id"]!.GetValue<string>(), ["client_secret"] = client["client_secret"]?.GetValue<string>() ?? "", ["code"] = code, ["code_verifier"] = verifier, ["redirect_uri"] = redirect, ["grant_type"] = "authorization_code" });
+            token = await Token(new() { ["client_id"] = client["client_id"]!.GetValue<string>(), ["client_secret"] = client["client_secret"]?.GetValue<string>() ?? "", ["code"] = code, ["code_verifier"] = verifier, ["redirect_uri"] = redirect, ["grant_type"] = "authorization_code" }, cancellation.Token);
             SaveToken();
         }
-        finally { listener.Stop(); }
+        finally { listener.Stop(); loginCancellation = null; }
     }
     static string Query(Dictionary<string, string> values) => string.Join("&", values.Select(v => Uri.EscapeDataString(v.Key) + "=" + Uri.EscapeDataString(v.Value)));
-    async Task<JsonObject> Token(Dictionary<string, string> values)
+    async Task<JsonObject> Token(Dictionary<string, string> values, CancellationToken cancellation = default)
     {
-        using var response = await http.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(values));
+        using var response = await http.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(values), cancellation);
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException("Google konnte die Anmeldung nicht bestätigen. OAuth-Konfiguration und Testnutzer prüfen oder erneut anmelden.");
         var result = JsonNode.Parse(await response.Content.ReadAsStringAsync())!.AsObject();
         expires = DateTimeOffset.UtcNow.AddSeconds(result["expires_in"]?.GetValue<int>() ?? 3600); return result;
     }
     void SaveToken() => Json.Atomic(tokenPath, Protect(Encoding.UTF8.GetBytes(token!.ToJsonString())));
-    public void SignOut() { if (File.Exists(tokenPath)) File.Delete(tokenPath); token = null; expires = default; }
+    public void CancelLogin() => loginCancellation?.Cancel();
+    public void SignOut() { CancelLogin(); if (File.Exists(tokenPath)) File.Delete(tokenPath); token = null; expires = default; }
     async Task Authorize(HttpRequestMessage request)
     {
+        if (!Connected) throw new InvalidOperationException("Bitte zuerst mit Google anmelden.");
         token ??= JsonNode.Parse(Unprotect(File.ReadAllBytes(tokenPath)))!.AsObject();
         if (expires < DateTimeOffset.UtcNow.AddMinutes(1))
         {
