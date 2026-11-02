@@ -1,0 +1,43 @@
+name: Test SideStore writing and storage
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  writing-storage:
+    if: github.event.repository.private == false
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare app without widget
+        run: python3 Scripts/SideStore/prepare.py
+      - name: Boot iPad
+        uses: ./.github/actions/boot-ipad
+      - name: Writing, undo, autosave, recovery and backup tests
+        run: |
+          set -euo pipefail
+          test -n "$SIMULATOR_UDID"
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+          xcodebuild test \
+            -project OwlLuna.xcodeproj -scheme OwlLuna \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -xcconfig Config/SideStore.xcconfig \
+            -resultBundlePath "$RUNNER_TEMP/WritingStorage.xcresult" \
+            -parallel-testing-enabled NO \
+            -only-testing:OwlLunaTests/DrawingInputTests \
+            -only-testing:OwlLunaTests/ManifestCodecTests \
+            -only-testing:OwlLunaTests/NotebookPackageTests \
+            -only-testing:OwlLunaTests/DocumentTests \
+            -only-testing:OwlLunaTests/BackupTests \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= \
+            2>&1 | tee "$RUNNER_TEMP/writing-storage.log"
+      - name: Test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: writing-storage-results-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/WritingStorage.xcresult
+            ${{ runner.temp }}/writing-storage.log
+          retention-days: 7
